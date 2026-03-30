@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import responsesRouter from './routes/responses';
 
 const app = express();
 
@@ -18,5 +19,7 @@ app.get('/api/status', (_req, res) => {
     environment: process.env.NODE_ENV || 'development',
   });
 });
+
+app.use('/api/responses', responsesRouter);
 
 export default app;
