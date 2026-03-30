@@ -8,3 +8,5 @@ dist
 .prettierrc
 eslint.config.mjs
 nodemon.json
+**/*.test.ts
+**/*.spec.ts
