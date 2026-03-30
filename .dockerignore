@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.git
+.github
+*.md
+.editorconfig
+.prettierrc
+eslint.config.mjs
+nodemon.json
