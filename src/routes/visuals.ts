@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firebase';
+import { getDb } from '../config/firebase';
 
 const router = Router();
 
@@ -19,7 +19,7 @@ interface VisualData {
 // GET /api/visuals — list all visuals with metadata
 router.get('/', async (_req, res) => {
   try {
-    const snapshot = await db.ref('powerbi_data').once('value');
+    const snapshot = await getDb().ref('powerbi_data').once('value');
     const data = snapshot.val() as Record<string, VisualData> | null;
 
     if (!data) {
@@ -44,7 +44,7 @@ router.get('/', async (_req, res) => {
 router.get('/:key', async (req, res) => {
   try {
     const visualKey = req.params.key;
-    const ref = db.ref(`powerbi_data/${visualKey}`);
+    const ref = getDb().ref(`powerbi_data/${visualKey}`);
     const snapshot = await ref.once('value');
     const visual = snapshot.val() as VisualData | null;
 

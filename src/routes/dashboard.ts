@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { db } from '../config/firebase';
+import { getDb } from '../config/firebase';
 
 const router = Router();
 
 router.get('/', async (_req, res) => {
   try {
-    const snapshot = await db.ref('powerbi_data').once('value');
+    const snapshot = await getDb().ref('powerbi_data').once('value');
     const data = snapshot.val() as Record<
       string,
       { metadata?: { row_count?: number; page?: string } }
