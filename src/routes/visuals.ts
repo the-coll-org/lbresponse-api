@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../config/firebase';
+import { firebaseShallowGet } from '../config/firebaseRest';
 
 const router = Router();
 
@@ -11,27 +12,19 @@ interface VisualMetadata {
   row_count?: number;
 }
 
-// GET /api/visuals — list all visuals (metadata only, not rows)
+// GET /api/visuals — list all visuals (metadata only)
 router.get('/', async (_req, res) => {
   try {
-    const db = getDb();
+    const shallow = await firebaseShallowGet('powerbi_data');
 
-    // Get keys only
-    const keysSnap = await db
-      .ref('powerbi_data')
-      .orderByKey()
-      .limitToFirst(200)
-      .once('value');
-    const data = keysSnap.val() as Record<string, unknown> | null;
-
-    if (!data) {
+    if (!shallow) {
       res.json({ data: [], total: 0 });
       return;
     }
 
-    const keys = Object.keys(data);
+    const keys = Object.keys(shallow);
+    const db = getDb();
 
-    // Fetch metadata per visual (tiny payload each)
     const visuals = await Promise.all(
       keys.map(async (key) => {
         const metaSnap = await db
