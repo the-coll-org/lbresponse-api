@@ -3,8 +3,9 @@ import path from 'path';
 import fs from 'fs';
 
 function parseCredJson(raw: string): admin.ServiceAccount {
-  // Strip surrounding quotes if Render double-quoted the value
   let cleaned = raw.trim();
+
+  // Strip surrounding quotes if platform double-quoted the value
   if (
     (cleaned.startsWith("'") && cleaned.endsWith("'")) ||
     (cleaned.startsWith('"') && cleaned.endsWith('"'))
@@ -12,12 +13,13 @@ function parseCredJson(raw: string): admin.ServiceAccount {
     cleaned = cleaned.slice(1, -1);
   }
 
-  // Replace literal \n with actual newlines (Render can escape them)
-  cleaned = cleaned.replace(/\\n/g, '\n');
+  // Render converts \n in env vars to actual newlines — escape them back
+  // so JSON.parse doesn't choke on raw control chars in string values
+  cleaned = cleaned.replace(/\n/g, '\\n');
 
   let parsed: unknown = JSON.parse(cleaned);
 
-  // Handle double-encoded JSON (string inside string)
+  // Handle double-encoded JSON
   if (typeof parsed === 'string') {
     parsed = JSON.parse(parsed);
   }
@@ -26,9 +28,7 @@ function parseCredJson(raw: string): admin.ServiceAccount {
   if (!obj.project_id || typeof obj.project_id !== 'string') {
     console.error(
       'FIREBASE_CRED_JSON parsed but missing project_id. Keys:',
-      Object.keys(obj),
-      'Types:',
-      Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v]))
+      Object.keys(obj)
     );
     throw new Error('FIREBASE_CRED_JSON is invalid — missing project_id.');
   }
@@ -41,7 +41,6 @@ function initFirebase(): admin.database.Database {
     return admin.database();
   }
 
-  // Option 1: JSON string in env var
   if (process.env.FIREBASE_CRED_JSON) {
     const serviceAccount = parseCredJson(process.env.FIREBASE_CRED_JSON);
     admin.initializeApp({
@@ -51,7 +50,6 @@ function initFirebase(): admin.database.Database {
     return admin.database();
   }
 
-  // Option 2: File path
   const credPath =
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     path.resolve(process.cwd(), 'service-account.json');
@@ -69,7 +67,6 @@ function initFirebase(): admin.database.Database {
   );
 }
 
-// Lazy init — don't crash at import time
 let _db: admin.database.Database | null = null;
 
 export function getDb(): admin.database.Database {
