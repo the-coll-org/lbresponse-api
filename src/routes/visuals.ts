@@ -11,27 +11,36 @@ interface VisualMetadata {
   row_count?: number;
 }
 
-interface VisualData {
-  metadata?: VisualMetadata;
-  rows?: Record<string, unknown>[];
-}
-
-// GET /api/visuals — list all visuals with metadata
+// GET /api/visuals — list all visuals (metadata only, not rows)
 router.get('/', async (_req, res) => {
   try {
     const db = getDb();
-    const snapshot = await db.ref('powerbi_data').once('value');
-    const data = snapshot.val() as Record<string, VisualData> | null;
+
+    // Get keys only
+    const keysSnap = await db
+      .ref('powerbi_data')
+      .orderByKey()
+      .limitToFirst(200)
+      .once('value');
+    const data = keysSnap.val() as Record<string, unknown> | null;
 
     if (!data) {
       res.json({ data: [], total: 0 });
       return;
     }
 
-    const visuals = Object.entries(data).map(([key, visual]) => ({
-      key,
-      ...visual.metadata,
-    }));
+    const keys = Object.keys(data);
+
+    // Fetch metadata per visual (tiny payload each)
+    const visuals = await Promise.all(
+      keys.map(async (key) => {
+        const metaSnap = await db
+          .ref(`powerbi_data/${key}/metadata`)
+          .once('value');
+        const meta = metaSnap.val() as VisualMetadata | null;
+        return { key, ...(meta ?? {}) };
+      })
+    );
 
     res.json({ data: visuals, total: visuals.length });
   } catch (err) {
@@ -47,7 +56,10 @@ router.get('/:key', async (req, res) => {
     const db = getDb();
     const visualKey = req.params.key;
     const snapshot = await db.ref(`powerbi_data/${visualKey}`).once('value');
-    const visual = snapshot.val() as VisualData | null;
+    const visual = snapshot.val() as {
+      metadata?: VisualMetadata;
+      rows?: Record<string, unknown>[];
+    } | null;
 
     if (!visual) {
       res.status(404).json({ error: 'Visual not found' });

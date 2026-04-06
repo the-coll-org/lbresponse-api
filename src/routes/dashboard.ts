@@ -6,33 +6,44 @@ const router = Router();
 router.get('/', async (_req, res) => {
   try {
     const db = getDb();
-    const snapshot = await db.ref('powerbi_data').once('value');
-    const data = snapshot.val() as Record<
-      string,
-      { metadata?: { row_count?: number; page?: string } }
-    > | null;
+    // Get just the keys without loading all data
+    const keysSnap = await db
+      .ref('powerbi_data')
+      .orderByKey()
+      .limitToFirst(200)
+      .once('value');
+    const data = keysSnap.val() as Record<string, unknown> | null;
 
     if (!data) {
       res.json({ visuals: 0, rows: 0, pages: [] });
       return;
     }
 
+    const keys = Object.keys(data);
     const pages = new Set<string>();
     let totalRows = 0;
-    let totalVisuals = 0;
 
-    for (const visual of Object.values(data)) {
-      totalVisuals++;
-      if (visual.metadata) {
-        totalRows += visual.metadata.row_count ?? 0;
-        if (visual.metadata.page) {
-          pages.add(visual.metadata.page);
-        }
+    // Fetch only metadata for each (small payload per key)
+    const metaPromises = keys.map(async (key) => {
+      const metaSnap = await db
+        .ref(`powerbi_data/${key}/metadata`)
+        .once('value');
+      return metaSnap.val() as {
+        row_count?: number;
+        page?: string;
+      } | null;
+    });
+
+    const metas = await Promise.all(metaPromises);
+    for (const meta of metas) {
+      if (meta) {
+        totalRows += meta.row_count ?? 0;
+        if (meta.page) pages.add(meta.page);
       }
     }
 
     res.json({
-      visuals: totalVisuals,
+      visuals: keys.length,
       rows: totalRows,
       pages: [...pages],
     });
