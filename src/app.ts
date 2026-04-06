@@ -1,10 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dashboardRouter from './routes/dashboard';
-import providersRouter from './routes/providers';
-import servicesRouter from './routes/services';
-import locationsRouter from './routes/locations';
-import sheltersRouter from './routes/shelters';
+import visualsRouter from './routes/visuals';
 
 const app = express();
 
@@ -25,9 +22,6 @@ app.get('/api/status', (_req, res) => {
 });
 
 app.use('/api/dashboard', dashboardRouter);
-app.use('/api/providers', providersRouter);
-app.use('/api/services', servicesRouter);
-app.use('/api/locations', locationsRouter);
-app.use('/api/shelters', sheltersRouter);
+app.use('/api/visuals', visualsRouter);
 
 export default app;
