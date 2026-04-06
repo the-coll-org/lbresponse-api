@@ -5,10 +5,21 @@ import fs from 'fs';
 function getCredential(): admin.credential.Credential {
   // Option 1: JSON string in env var (for Render / cloud deploys)
   if (process.env.FIREBASE_CRED_JSON) {
-    const parsed = JSON.parse(
-      process.env.FIREBASE_CRED_JSON
-    ) as admin.ServiceAccount;
-    return admin.credential.cert(parsed);
+    const raw = process.env.FIREBASE_CRED_JSON.trim();
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+    if (!parsed.project_id || typeof parsed.project_id !== 'string') {
+      console.error(
+        'FIREBASE_CRED_JSON parsed but missing project_id. Keys found:',
+        Object.keys(parsed)
+      );
+      throw new Error(
+        'FIREBASE_CRED_JSON is invalid — missing project_id. ' +
+          'Make sure you pasted the full service account JSON.'
+      );
+    }
+
+    return admin.credential.cert(parsed as admin.ServiceAccount);
   }
 
   // Option 2: File path
