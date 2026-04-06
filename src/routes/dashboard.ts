@@ -1,49 +1,40 @@
-import { Router, Request, Response } from 'express';
-import https from 'https';
+import { Router } from 'express';
+import { getDb } from '../config/firebase';
 
 const router = Router();
 
-function firebaseGet(path: string): Promise<unknown> {
-  const dbUrl = process.env.FIREBASE_DB_URL ?? '';
-  const url = `${dbUrl}/${path}.json?shallow=true`;
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, (res) => {
-        let body = '';
-        res.on('data', (chunk: string) => (body += chunk));
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(body));
-          } catch {
-            reject(
-              new Error(`Invalid JSON from Firebase: ${body.slice(0, 200)}`)
-            );
-          }
-        });
-      })
-      .on('error', reject);
-  });
-}
-
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (_req, res) => {
   try {
-    // Shallow query — only gets keys, not full data
-    const shallow = (await firebaseGet('powerbi_data')) as Record<
+    const db = getDb();
+    const snapshot = await db.ref('powerbi_data').once('value');
+    const data = snapshot.val() as Record<
       string,
-      boolean
+      { metadata?: { row_count?: number; page?: string } }
     > | null;
 
-    if (!shallow) {
+    if (!data) {
       res.json({ visuals: 0, rows: 0, pages: [] });
       return;
     }
 
-    const keys = Object.keys(shallow);
+    const pages = new Set<string>();
+    let totalRows = 0;
+    let totalVisuals = 0;
+
+    for (const visual of Object.values(data)) {
+      totalVisuals++;
+      if (visual.metadata) {
+        totalRows += visual.metadata.row_count ?? 0;
+        if (visual.metadata.page) {
+          pages.add(visual.metadata.page);
+        }
+      }
+    }
+
     res.json({
-      visuals: keys.length,
-      rows: 0, // Would need per-visual metadata fetch to get exact count
-      pages: [],
-      visual_keys: keys,
+      visuals: totalVisuals,
+      rows: totalRows,
+      pages: [...pages],
     });
   } catch (err) {
     res
