@@ -1,0 +1,77 @@
+name: Auto-approve maintainer PRs
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  approve:
+    name: Approve if author is allow-listed or a maintainer
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Check author and approve
+        uses: actions/github-script@v7
+        env:
+          ALLOWED_AUTHORS: kevin-aoun
+        with:
+          script: |
+            const author = context.payload.pull_request.user.login;
+            const prNumber = context.payload.pull_request.number;
+            const headSha = context.payload.pull_request.head.sha;
+
+            const allowedAuthors = (process.env.ALLOWED_AUTHORS || '')
+              .split(',')
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean);
+            const allowedPermissions = ['admin', 'maintain'];
+
+            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: author,
+            });
+            const level = perm.permission;
+
+            const isAllowedAuthor = allowedAuthors.includes(author.toLowerCase());
+            const isMaintainer = allowedPermissions.includes(level);
+
+            if (!isAllowedAuthor && !isMaintainer) {
+              core.info(
+                `Skipping: @${author} has '${level}' permission and is not on the allow-list.`,
+              );
+              return;
+            }
+
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+            const alreadyApproved = reviews.some(
+              (r) => r.state === 'APPROVED'
+                && r.user?.login === 'github-actions[bot]'
+                && r.commit_id === headSha,
+            );
+            if (alreadyApproved) {
+              core.info(`PR #${prNumber} already auto-approved at ${headSha}.`);
+              return;
+            }
+
+            const reason = isAllowedAuthor
+              ? `@${author} is on the auto-approve allow-list`
+              : `@${author} has \`${level}\` permission on this repository`;
+
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              event: 'APPROVE',
+              body: `Auto-approved: ${reason}.`,
+            });
+
+            core.info(`Approved PR #${prNumber} from @${author} (${reason}).`);
