@@ -1,5 +1,8 @@
+import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
-import { getSnapshot } from '../utils/entityStore';
+import { getDb } from '../config/firebase';
+import { HttpError } from '../middleware/error';
+import { getSnapshot, invalidateSnapshot } from '../utils/entityStore';
 import type {
   Location,
   OrganizationDto,
@@ -7,6 +10,24 @@ import type {
 } from '../models/Organization';
 
 type Sort = 'az' | 'relevance';
+
+const ORGANIZATION_TYPES = new Set([
+  'ngo',
+  'un',
+  'local_organization',
+  'government',
+  'private_donor',
+  'private_company',
+]);
+
+const CONTACT_TYPES = new Set([
+  'phone',
+  'whatsapp',
+  'email',
+  'telegram',
+  'sms',
+  'other',
+]);
 
 function str(v: unknown): string {
   if (typeof v === 'string') return v;
@@ -120,4 +141,76 @@ export async function listOrganizations(
   const data = scored.slice(start, start + pageSize).map((s) => s.dto);
 
   res.json({ data, total, page, page_size: pageSize });
+}
+
+function pickString(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+export async function createOrganization(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  const name = pickString(body.name);
+  const nameAr = pickString(body.name_ar);
+  const contactType = pickString(body.contact_type)?.toLowerCase() ?? '';
+  const orgType = pickString(body.organization_type)?.toLowerCase() ?? '';
+
+  if (!name) throw new HttpError(400, 'name is required');
+  if (!nameAr) throw new HttpError(400, 'name_ar is required');
+  if (!CONTACT_TYPES.has(contactType))
+    throw new HttpError(
+      400,
+      `contact_type must be one of: ${[...CONTACT_TYPES].join(', ')}`
+    );
+  if (!ORGANIZATION_TYPES.has(orgType))
+    throw new HttpError(
+      400,
+      `organization_type must be one of: ${[...ORGANIZATION_TYPES].join(', ')}`
+    );
+
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  const record: Provider = {
+    provider_id: id,
+    provider_name: name,
+    provider_name_ar: nameAr,
+    provider_type: orgType,
+    description: pickString(body.description),
+    description_ar: pickString(body.description_ar),
+    website: pickString(body.website),
+    contact_name: pickString(body.contact_name) ?? '',
+    contact_phone: pickString(body.phone_number) ?? '',
+    email: pickString(body.email),
+    contact_type: contactType,
+    is_active: true,
+    pinned: false,
+    verified: false,
+    created_at: now,
+    updated_at: now,
+    location_ids: [],
+  };
+
+  await getDb().ref(`entities/providers/${id}`).set(record);
+  invalidateSnapshot();
+
+  const dto: OrganizationDto = {
+    id,
+    title: name,
+    title_ar: nameAr,
+    description: record.description ?? null,
+    description_ar: record.description_ar ?? null,
+    email: record.email ?? null,
+    pinned: false,
+    verified: false,
+    phone_number: record.contact_phone || null,
+    type: contactType,
+    locations: [],
+    organization_type: orgType,
+    updated_at: now,
+  };
+
+  res.status(201).json(dto);
 }
