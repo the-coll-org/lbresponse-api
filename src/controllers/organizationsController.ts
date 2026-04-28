@@ -27,6 +27,33 @@ function clampInt(v: unknown, fallback: number, min = 1, max = 1000): number {
   return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
+function extractPhoneNumbers(p: Provider): string[] {
+  if (Array.isArray(p.contact_phones) && p.contact_phones.length > 0) {
+    return p.contact_phones.filter(
+      (n) => typeof n === 'string' && n.trim() !== ''
+    );
+  }
+  if (typeof p.contact_phone === 'string' && p.contact_phone.trim() !== '') {
+    return p.contact_phone
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function extractSocialMedia(p: Provider): string[] {
+  if (
+    Array.isArray(p.social_media_accounts) &&
+    p.social_media_accounts.length > 0
+  ) {
+    return p.social_media_accounts.filter(
+      (s) => typeof s === 'string' && s.trim() !== ''
+    );
+  }
+  return [];
+}
+
 function toDto(p: Provider, locations: Map<string, Location>): OrganizationDto {
   const locs = (p.location_ids ?? [])
     .map((id) => locations.get(id))
@@ -41,9 +68,9 @@ function toDto(p: Provider, locations: Map<string, Location>): OrganizationDto {
     description: p.description ?? null,
     description_ar: p.description_ar ?? null,
     email: p.email ?? null,
-    pinned: Boolean(p.pinned),
     verified: Boolean(p.verified),
-    phone_number: p.contact_phone ?? null,
+    phone_numbers: extractPhoneNumbers(p),
+    social_media: extractSocialMedia(p),
     type: p.contact_type ?? null,
     locations: locs,
     organization_type: p.provider_type ?? null,
@@ -83,7 +110,6 @@ export async function listOrganizations(
   const locationFilter = toArray(req.query.location).map((s) =>
     s.toLowerCase()
   );
-  const pinnedOnly = str(req.query.pinned) === 'true';
   const sort: Sort = req.query.sort === 'relevance' ? 'relevance' : 'az';
   const page = clampInt(req.query.page, 1);
   const pageSize = clampInt(req.query.page_size, 20, 1, 100);
@@ -91,7 +117,6 @@ export async function listOrganizations(
   const scored: { dto: OrganizationDto; score: number }[] = [];
   for (const p of providers) {
     const dto = toDto(p, locations);
-    if (pinnedOnly && !dto.pinned) continue;
     if (
       types.length &&
       !types.includes((dto.organization_type ?? '').toLowerCase())
@@ -110,7 +135,6 @@ export async function listOrganizations(
   }
 
   scored.sort((a, b) => {
-    if (a.dto.pinned !== b.dto.pinned) return a.dto.pinned ? -1 : 1;
     if (sort === 'relevance' && q) return b.score - a.score;
     return a.dto.title.localeCompare(b.dto.title);
   });
