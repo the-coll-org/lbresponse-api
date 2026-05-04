@@ -16,6 +16,17 @@ const TTL_MS = 60_000;
 let cache: Snapshot | null = null;
 let pending: Promise<Snapshot> | null = null;
 
+const PHONE_LIKE_PATTERN = /^[\d\s\-+()]+$/;
+
+function isProviderNameValid(name: unknown): boolean {
+  if (typeof name !== 'string') return false;
+  const s = name.trim();
+  if (!s) return false;
+  if (/^\d+$/.test(s) && s.length >= 10) return false;
+  if (PHONE_LIKE_PATTERN.test(s)) return false;
+  return /[A-Za-z؀-ۿ]/.test(s);
+}
+
 async function load(): Promise<Snapshot> {
   const db = getDb();
   const [providersSnap, locationsSnap, categoriesSnap] = await Promise.all([
@@ -24,8 +35,13 @@ async function load(): Promise<Snapshot> {
     db.ref('categories').once('value'),
   ]);
 
-  const providers = Object.values(
+  const allProviders = Object.values(
     (providersSnap.val() as Record<string, Provider> | null) ?? {}
+  );
+  const providers = allProviders.filter(
+    (p) =>
+      (p as { is_name_valid?: boolean }).is_name_valid !== false &&
+      isProviderNameValid(p.provider_name)
   );
   const locations = new Map(
     Object.entries(

@@ -27,19 +27,35 @@ function clampInt(v: unknown, fallback: number, min = 1, max = 1000): number {
   return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
+function isValidLebanesePhone(text: string): boolean {
+  let digits = text.replace(/\D/g, '');
+  if (digits.startsWith('961')) digits = digits.slice(3);
+  if (digits.length < 7 || digits.length > 8) return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
+  if (digits.startsWith('00')) return false;
+  return true;
+}
+
 function extractPhoneNumbers(p: Provider): string[] {
-  if (Array.isArray(p.contact_phones) && p.contact_phones.length > 0) {
-    return p.contact_phones.filter(
-      (n) => typeof n === 'string' && n.trim() !== ''
+  const candidates: string[] = [];
+  if (Array.isArray(p.contact_phones)) {
+    candidates.push(
+      ...p.contact_phones.filter((n): n is string => typeof n === 'string')
     );
   }
-  if (typeof p.contact_phone === 'string' && p.contact_phone.trim() !== '') {
-    return p.contact_phone
-      .split(',')
-      .map((n) => n.trim())
-      .filter(Boolean);
+  if (typeof p.contact_phone === 'string') {
+    candidates.push(...p.contact_phone.split(','));
   }
-  return [];
+  const seen = new Set<string>();
+  const valid: string[] = [];
+  for (const raw of candidates) {
+    const trimmed = raw.trim();
+    if (!trimmed || !isValidLebanesePhone(trimmed)) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    valid.push(trimmed);
+  }
+  return valid;
 }
 
 function extractSocialMedia(p: Provider): string[] {
@@ -52,6 +68,35 @@ function extractSocialMedia(p: Provider): string[] {
     );
   }
   return [];
+}
+
+function expandToDtos(
+  p: Provider,
+  locations: Map<string, Location>
+): { dto: OrganizationDto; isSplit: boolean }[] {
+  const baseDto = toDto(p, locations);
+  const beforeSlash = baseDto.title.split('/')[0].trim() || baseDto.title;
+  const fragments = beforeSlash
+    .split(',')
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0 && /[A-Za-z؀-ۿ]/.test(n));
+  if (fragments.length === 0) {
+    return [{ dto: baseDto, isSplit: false }];
+  }
+  if (fragments.length === 1) {
+    if (fragments[0] === baseDto.title) {
+      return [{ dto: baseDto, isSplit: false }];
+    }
+    return [{ dto: { ...baseDto, title: fragments[0] }, isSplit: false }];
+  }
+  return fragments.map((name, idx) => ({
+    dto: {
+      ...baseDto,
+      id: `${baseDto.id}:${idx}`,
+      title: name,
+    },
+    isSplit: true,
+  }));
 }
 
 function toDto(p: Provider, locations: Map<string, Location>): OrganizationDto {
@@ -114,9 +159,32 @@ export async function listOrganizations(
   const page = clampInt(req.query.page, 1);
   const pageSize = clampInt(req.query.page_size, 20, 1, 100);
 
-  const scored: { dto: OrganizationDto; score: number }[] = [];
+  const seen = new Map<string, { dto: OrganizationDto; isSplit: boolean }>();
   for (const p of providers) {
-    const dto = toDto(p, locations);
+    for (const expanded of expandToDtos(p, locations)) {
+      const key = expanded.dto.title.toLowerCase().trim();
+      const existing = seen.get(key);
+      if (!existing) {
+        seen.set(key, expanded);
+        continue;
+      }
+      const existingHasPhone = existing.dto.phone_numbers.length > 0;
+      const expandedHasPhone = expanded.dto.phone_numbers.length > 0;
+      if (!existingHasPhone && expandedHasPhone) {
+        seen.set(key, expanded);
+        continue;
+      }
+      if (existingHasPhone && !expandedHasPhone) {
+        continue;
+      }
+      if (existing.isSplit && !expanded.isSplit) {
+        seen.set(key, expanded);
+      }
+    }
+  }
+
+  const scored: { dto: OrganizationDto; score: number }[] = [];
+  for (const { dto } of seen.values()) {
     if (
       types.length &&
       !types.includes((dto.organization_type ?? '').toLowerCase())
