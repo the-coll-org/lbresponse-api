@@ -8,14 +8,15 @@ export interface Provider {
   website?: string | null;
   contact_name?: string | null;
   contact_phone?: string | null;
+  contact_phones?: string[] | null;
   email?: string | null;
   contact_type?: string | null;
   is_active?: boolean | null;
-  pinned?: boolean | null;
   verified?: boolean | null;
   created_at?: string | null;
   updated_at?: string | null;
   location_ids?: string[] | null;
+  social_media_accounts?: string[] | null;
 }
 
 export interface Location {
@@ -41,9 +42,9 @@ export interface OrganizationDto {
   description: string | null;
   description_ar: string | null;
   email: string | null;
-  pinned: boolean;
   verified: boolean;
-  phone_number: string | null;
+  phone_numbers: string[];
+  social_media: string[];
   type: string | null;
   locations: string[];
   organization_type: string | null;
