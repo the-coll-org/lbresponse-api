@@ -9,6 +9,7 @@ export interface Provider {
   contact_name?: string | null;
   contact_phone?: string | null;
   contact_phones?: string[] | null;
+  whatsapp?: string | null;
   email?: string | null;
   contact_type?: string | null;
   is_active?: boolean | null;
@@ -26,6 +27,8 @@ export interface Location {
   city_ar?: string | null;
   district?: string | null;
   district_ar?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface CategoryRecord {
@@ -44,9 +47,11 @@ export interface OrganizationDto {
   email: string | null;
   verified: boolean;
   phone_numbers: string[];
+  whatsapp: string | null;
   social_media: string[];
   type: string | null;
   locations: string[];
+  map_url: string | null;
   organization_type: string | null;
   updated_at: string | null;
 }

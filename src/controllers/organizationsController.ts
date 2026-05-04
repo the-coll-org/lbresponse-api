@@ -70,6 +70,53 @@ function extractSocialMedia(p: Provider): string[] {
   return [];
 }
 
+function extractWhatsapp(p: Provider): string | null {
+  if (typeof p.whatsapp === 'string' && p.whatsapp.trim()) {
+    const trimmed = p.whatsapp.trim();
+    if (isValidLebanesePhone(trimmed)) return trimmed;
+  }
+  const social = Array.isArray(p.social_media_accounts)
+    ? p.social_media_accounts
+    : [];
+  for (const entry of social) {
+    if (typeof entry !== 'string') continue;
+    const match = entry.match(
+      /(?:wa\.me\/|whatsapp\.com\/(?:send\?phone=)?)\+?(\d+)/i
+    );
+    if (match) {
+      const digits = match[1];
+      const normalized = digits.startsWith('961')
+        ? '0' + digits.slice(3)
+        : digits;
+      if (isValidLebanesePhone(normalized)) return normalized;
+    }
+  }
+  return null;
+}
+
+function buildMapUrl(
+  locationIds: string[] | null | undefined,
+  locations: Map<string, Location>,
+  fallbackLabel: string
+): string | null {
+  if (Array.isArray(locationIds)) {
+    for (const id of locationIds) {
+      const loc = locations.get(id);
+      if (
+        loc &&
+        typeof loc.latitude === 'number' &&
+        typeof loc.longitude === 'number'
+      ) {
+        return `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
+      }
+    }
+  }
+  if (fallbackLabel.trim()) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(fallbackLabel + ', Lebanon')}`;
+  }
+  return null;
+}
+
 function expandToDtos(
   p: Provider,
   locations: Map<string, Location>
@@ -106,6 +153,8 @@ function toDto(p: Provider, locations: Map<string, Location>): OrganizationDto {
     .map((l) => [l.city, l.governorate].filter(Boolean).join(', '))
     .filter(Boolean);
 
+  const phones = extractPhoneNumbers(p);
+
   return {
     id: p.provider_id,
     title: p.provider_name,
@@ -114,10 +163,12 @@ function toDto(p: Provider, locations: Map<string, Location>): OrganizationDto {
     description_ar: p.description_ar ?? null,
     email: p.email ?? null,
     verified: Boolean(p.verified),
-    phone_numbers: extractPhoneNumbers(p),
+    phone_numbers: phones,
+    whatsapp: extractWhatsapp(p),
     social_media: extractSocialMedia(p),
     type: p.contact_type ?? null,
     locations: locs,
+    map_url: buildMapUrl(p.location_ids, locations, locs[0] ?? ''),
     organization_type: p.provider_type ?? null,
     updated_at: p.updated_at ?? p.created_at ?? null,
   };
