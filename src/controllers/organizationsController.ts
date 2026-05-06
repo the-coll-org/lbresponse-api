@@ -239,8 +239,38 @@ export async function listOrganizations(
     }
   }
 
-  const scored: { dto: OrganizationDto; score: number }[] = [];
+  // Merge cards that share the same (title, contact). The contact key is
+  // the first phone if present, otherwise the email — so phone-only and
+  // email-only orgs both collapse when the contact actually matches.
+  // Cards without any contact stay separate.
+  const contactMerged = new Map<string, OrganizationDto>();
+  const ungrouped: OrganizationDto[] = [];
   for (const { dto } of seen.values()) {
+    const phone = dto.phone_numbers[0]?.trim() ?? '';
+    const email = dto.email?.trim() ?? '';
+    const contactKey = phone
+      ? `phone:${phone}`
+      : email
+        ? `email:${email.toLowerCase()}`
+        : '';
+    if (!contactKey) {
+      ungrouped.push(dto);
+      continue;
+    }
+    const key = `${dto.title.toLowerCase().trim()}|${contactKey}`;
+    const existing = contactMerged.get(key);
+    if (!existing) {
+      contactMerged.set(key, dto);
+      continue;
+    }
+    const districts = new Set(existing.locations);
+    for (const d of dto.locations) districts.add(d);
+    contactMerged.set(key, { ...existing, locations: [...districts] });
+  }
+  const mergedDtos = [...contactMerged.values(), ...ungrouped];
+
+  const scored: { dto: OrganizationDto; score: number }[] = [];
+  for (const dto of mergedDtos) {
     if (
       types.length &&
       !types.includes((dto.organization_type ?? '').toLowerCase())
