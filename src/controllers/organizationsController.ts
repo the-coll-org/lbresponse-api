@@ -212,7 +212,11 @@ export async function listOrganizations(
   const locationFilter = toArray(req.query.location).map(slugify);
   const sort: Sort = req.query.sort === 'relevance' ? 'relevance' : 'az';
   const page = clampInt(req.query.page, 1);
-  const pageSize = clampInt(req.query.page_size, 20, 1, 100);
+  const pageSize = clampInt(req.query.page_size, 10, 1, 100);
+  const includes = new Set(
+    toArray(req.query.include).map((s) => s.toLowerCase())
+  );
+  const includeServices = includes.has('services');
 
   const seen = new Map<string, { dto: OrganizationDto; isSplit: boolean }>();
   for (const p of providers) {
@@ -298,7 +302,14 @@ export async function listOrganizations(
 
   const total = scored.length;
   const start = (page - 1) * pageSize;
-  const data = scored.slice(start, start + pageSize).map((s) => s.dto);
+  const data = scored.slice(start, start + pageSize).map((s) => {
+    if (includeServices) return s.dto;
+    // Strip services[] for the list response — the cards don't need it and it
+    // can be 60-80% of the payload. service_count is kept so the UI can still
+    // show how many services an org offers; full list available via
+    // ?include=services or a future detail endpoint.
+    return { ...s.dto, services: [] };
+  });
 
   res.json({ data, total, page, page_size: pageSize });
 }

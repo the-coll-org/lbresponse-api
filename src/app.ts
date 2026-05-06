@@ -1,5 +1,6 @@
-import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
+import express from 'express';
 import dashboardRouter from './routes/dashboard';
 import visualsRouter from './routes/visuals';
 import organizationsRouter from './routes/organizations';
@@ -10,6 +11,7 @@ import { errorHandler, notFound } from './middleware/error';
 
 const app = express();
 
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 app.use(requestLogger);
