@@ -1,23 +1,34 @@
+export interface ProviderContact {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+}
+
+export interface ProviderService {
+  name?: string | null;
+  sector?: string | null;
+  district?: string | null;
+  target_age_gender?: string | null;
+  target_population?: string | null;
+  accessible?: boolean | null;
+}
+
 export interface Provider {
   provider_id: string;
   provider_name: string;
   provider_name_ar?: string | null;
-  provider_type?: string | null;
-  description?: string | null;
-  description_ar?: string | null;
-  website?: string | null;
-  contact_name?: string | null;
-  contact_phone?: string | null;
-  contact_phones?: string[] | null;
-  whatsapp?: string | null;
-  email?: string | null;
-  contact_type?: string | null;
-  is_active?: boolean | null;
+  slug?: string | null;
+  primary_contact?: ProviderContact | null;
+  secondary_contact?: ProviderContact | null;
+  sectors?: string[] | null;
+  districts?: string[] | null;
+  services?: ProviderService[] | null;
+  service_count?: number | null;
+  is_name_valid?: boolean | null;
+  pinned?: boolean | null;
   verified?: boolean | null;
-  created_at?: string | null;
   updated_at?: string | null;
-  location_ids?: string[] | null;
-  social_media_accounts?: string[] | null;
 }
 
 export interface Location {
@@ -51,6 +62,11 @@ export interface OrganizationDto {
   social_media: string[];
   type: string | null;
   locations: string[];
+  sectors: string[];
+  services: ProviderService[];
+  service_count: number;
+  primary_contact_name: string | null;
+  secondary_contact: ProviderContact | null;
   map_url: string | null;
   organization_type: string | null;
   updated_at: string | null;

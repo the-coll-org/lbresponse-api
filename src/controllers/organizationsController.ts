@@ -4,6 +4,7 @@ import type {
   Location,
   OrganizationDto,
   Provider,
+  ProviderContact,
 } from '../models/Organization';
 
 type Sort = 'az' | 'relevance';
@@ -27,6 +28,14 @@ function clampInt(v: unknown, fallback: number, min = 1, max = 1000): number {
   return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function isValidLebanesePhone(text: string): boolean {
   let digits = text.replace(/\D/g, '');
   if (digits.startsWith('961')) digits = digits.slice(3);
@@ -36,85 +45,107 @@ function isValidLebanesePhone(text: string): boolean {
   return true;
 }
 
-function extractPhoneNumbers(p: Provider): string[] {
-  const candidates: string[] = [];
-  if (Array.isArray(p.contact_phones)) {
-    candidates.push(
-      ...p.contact_phones.filter((n): n is string => typeof n === 'string')
-    );
-  }
-  if (typeof p.contact_phone === 'string') {
-    candidates.push(...p.contact_phone.split(','));
-  }
+function pushIfValidPhone(
+  out: string[],
+  seen: Set<string>,
+  raw: unknown
+): void {
+  if (typeof raw !== 'string') return;
+  const trimmed = raw.trim();
+  if (!trimmed || seen.has(trimmed) || !isValidLebanesePhone(trimmed)) return;
+  seen.add(trimmed);
+  out.push(trimmed);
+}
+
+function collectPhones(
+  ...contacts: (ProviderContact | null | undefined)[]
+): string[] {
+  const out: string[] = [];
   const seen = new Set<string>();
-  const valid: string[] = [];
-  for (const raw of candidates) {
-    const trimmed = raw.trim();
-    if (!trimmed || !isValidLebanesePhone(trimmed)) continue;
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    valid.push(trimmed);
+  for (const c of contacts) {
+    if (!c) continue;
+    pushIfValidPhone(out, seen, c.phone);
+    pushIfValidPhone(out, seen, c.whatsapp);
   }
-  return valid;
+  return out;
 }
 
-function extractSocialMedia(p: Provider): string[] {
-  if (
-    Array.isArray(p.social_media_accounts) &&
-    p.social_media_accounts.length > 0
-  ) {
-    return p.social_media_accounts.filter(
-      (s) => typeof s === 'string' && s.trim() !== ''
-    );
-  }
-  return [];
-}
-
-function extractWhatsapp(p: Provider): string | null {
-  if (typeof p.whatsapp === 'string' && p.whatsapp.trim()) {
-    const trimmed = p.whatsapp.trim();
-    if (isValidLebanesePhone(trimmed)) return trimmed;
-  }
-  const social = Array.isArray(p.social_media_accounts)
-    ? p.social_media_accounts
-    : [];
-  for (const entry of social) {
-    if (typeof entry !== 'string') continue;
-    const match = entry.match(
-      /(?:wa\.me\/|whatsapp\.com\/(?:send\?phone=)?)\+?(\d+)/i
-    );
-    if (match) {
-      const digits = match[1];
-      const normalized = digits.startsWith('961')
-        ? '0' + digits.slice(3)
-        : digits;
-      if (isValidLebanesePhone(normalized)) return normalized;
-    }
-  }
-  return null;
-}
-
-function buildMapUrl(
-  locationIds: string[] | null | undefined,
-  locations: Map<string, Location>,
-  fallbackLabel: string
+function pickWhatsapp(
+  ...contacts: (ProviderContact | null | undefined)[]
 ): string | null {
-  if (Array.isArray(locationIds)) {
-    for (const id of locationIds) {
-      const loc = locations.get(id);
-      if (
-        loc &&
-        typeof loc.latitude === 'number' &&
-        typeof loc.longitude === 'number'
-      ) {
-        return `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
-      }
-    }
-  }
-  if (fallbackLabel.trim()) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(fallbackLabel + ', Lebanon')}`;
+  for (const c of contacts) {
+    if (!c) continue;
+    const wa = typeof c.whatsapp === 'string' ? c.whatsapp.trim() : '';
+    if (wa && isValidLebanesePhone(wa)) return wa;
   }
   return null;
+}
+
+function pickEmail(
+  ...contacts: (ProviderContact | null | undefined)[]
+): string | null {
+  for (const c of contacts) {
+    const email = typeof c?.email === 'string' ? c.email.trim() : '';
+    if (email) return email;
+  }
+  return null;
+}
+
+function buildDescription(p: Provider): string | null {
+  const services = Array.isArray(p.services) ? p.services : [];
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const s of services) {
+    const name = typeof s.name === 'string' ? s.name.trim() : '';
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    names.push(name);
+    if (names.length >= 3) break;
+  }
+  return names.length ? names.join('; ') : null;
+}
+
+function buildMapUrlFromDistricts(districts: string[]): string | null {
+  if (districts.length === 0) return null;
+  return `https://www.google.com/maps?q=${encodeURIComponent(districts[0] + ', Lebanon')}`;
+}
+
+function toDto(
+  p: Provider,
+  _locations: Map<string, Location>
+): OrganizationDto {
+  const primary = p.primary_contact ?? null;
+  const secondary = p.secondary_contact ?? null;
+  const sectors = Array.isArray(p.sectors) ? p.sectors.filter(Boolean) : [];
+  const districts = Array.isArray(p.districts)
+    ? p.districts.filter(Boolean)
+    : [];
+  const services = Array.isArray(p.services) ? p.services : [];
+  const phones = collectPhones(primary, secondary);
+
+  return {
+    id: p.provider_id,
+    title: p.provider_name,
+    title_ar: p.provider_name_ar ?? null,
+    description: buildDescription(p),
+    description_ar: null,
+    email: pickEmail(primary, secondary),
+    verified: Boolean(p.verified),
+    phone_numbers: phones,
+    whatsapp: pickWhatsapp(primary, secondary),
+    social_media: [],
+    type: null,
+    locations: districts,
+    sectors,
+    services,
+    service_count:
+      typeof p.service_count === 'number' ? p.service_count : services.length,
+    primary_contact_name: primary?.name ?? null,
+    secondary_contact: secondary,
+    map_url: buildMapUrlFromDistricts(districts),
+    organization_type: sectors[0] ?? null,
+    updated_at: p.updated_at ?? null,
+  };
 }
 
 function expandToDtos(
@@ -146,40 +177,14 @@ function expandToDtos(
   }));
 }
 
-function toDto(p: Provider, locations: Map<string, Location>): OrganizationDto {
-  const locs = (p.location_ids ?? [])
-    .map((id) => locations.get(id))
-    .filter((l): l is Location => Boolean(l))
-    .map((l) => [l.city, l.governorate].filter(Boolean).join(', '))
-    .filter(Boolean);
-
-  const phones = extractPhoneNumbers(p);
-
-  return {
-    id: p.provider_id,
-    title: p.provider_name,
-    title_ar: p.provider_name_ar ?? null,
-    description: p.description ?? null,
-    description_ar: p.description_ar ?? null,
-    email: p.email ?? null,
-    verified: Boolean(p.verified),
-    phone_numbers: phones,
-    whatsapp: extractWhatsapp(p),
-    social_media: extractSocialMedia(p),
-    type: p.contact_type ?? null,
-    locations: locs,
-    map_url: buildMapUrl(p.location_ids, locations, locs[0] ?? ''),
-    organization_type: p.provider_type ?? null,
-    updated_at: p.updated_at ?? p.created_at ?? null,
-  };
-}
-
 function scoreMatch(dto: OrganizationDto, q: string): number {
   const hay = [
     dto.title,
     dto.description,
     dto.organization_type,
     ...dto.locations,
+    ...dto.sectors,
+    ...dto.services.map((s) => s.name ?? ''),
   ]
     .filter(Boolean)
     .join(' ')
@@ -203,9 +208,8 @@ export async function listOrganizations(
   const types = toArray(req.query.organization_type).map((s) =>
     s.toLowerCase()
   );
-  const locationFilter = toArray(req.query.location).map((s) =>
-    s.toLowerCase()
-  );
+  const sectorFilter = toArray(req.query.sector).map(slugify);
+  const locationFilter = toArray(req.query.location).map(slugify);
   const sort: Sort = req.query.sort === 'relevance' ? 'relevance' : 'az';
   const page = clampInt(req.query.page, 1);
   const pageSize = clampInt(req.query.page_size, 20, 1, 100);
@@ -213,7 +217,8 @@ export async function listOrganizations(
   const seen = new Map<string, { dto: OrganizationDto; isSplit: boolean }>();
   for (const p of providers) {
     for (const expanded of expandToDtos(p, locations)) {
-      const key = expanded.dto.title.toLowerCase().trim();
+      const district = (expanded.dto.locations[0] ?? '').toLowerCase().trim();
+      const key = `${expanded.dto.title.toLowerCase().trim()}|${district}`;
       const existing = seen.get(key);
       if (!existing) {
         seen.set(key, expanded);
@@ -242,10 +247,13 @@ export async function listOrganizations(
     )
       continue;
     if (
+      sectorFilter.length &&
+      !dto.sectors.some((s) => sectorFilter.includes(slugify(s)))
+    )
+      continue;
+    if (
       locationFilter.length &&
-      !dto.locations.some((l) =>
-        locationFilter.some((f) => l.toLowerCase().includes(f))
-      )
+      !dto.locations.some((l) => locationFilter.includes(slugify(l)))
     )
       continue;
     const score = q ? scoreMatch(dto, q) : 1;
