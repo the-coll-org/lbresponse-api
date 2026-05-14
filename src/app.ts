@@ -5,6 +5,7 @@ import dashboardRouter from './routes/dashboard';
 import visualsRouter from './routes/visuals';
 import organizationsRouter from './routes/organizations';
 import filtersRouter from './routes/filters';
+import hotlinesRouter from './routes/hotlines';
 import clientErrorsRouter from './routes/clientErrors';
 import { requestLogger } from './middleware/logger';
 import { errorHandler, notFound } from './middleware/error';
@@ -33,6 +34,7 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/visuals', visualsRouter);
 app.use('/api/organizations', organizationsRouter);
 app.use('/api/filters', filtersRouter);
+app.use('/api/hotlines', hotlinesRouter);
 app.use('/api/client-errors', clientErrorsRouter);
 
 app.use(notFound);

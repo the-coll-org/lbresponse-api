@@ -1,6 +1,7 @@
 import { getDb } from '../config/firebase';
 import type {
   CategoryRecord,
+  EmergencyContact,
   Location,
   Provider,
 } from '../models/Organization';
@@ -9,6 +10,7 @@ interface Snapshot {
   providers: Provider[];
   locations: Map<string, Location>;
   categories: Record<string, CategoryRecord[]>;
+  hotlines: EmergencyContact[];
   fetchedAt: number;
 }
 
@@ -29,11 +31,13 @@ function isProviderNameValid(name: unknown): boolean {
 
 async function load(): Promise<Snapshot> {
   const db = getDb();
-  const [providersSnap, locationsSnap, categoriesSnap] = await Promise.all([
-    db.ref('entities/providers').once('value'),
-    db.ref('entities/locations').once('value'),
-    db.ref('categories').once('value'),
-  ]);
+  const [providersSnap, locationsSnap, categoriesSnap, hotlinesSnap] =
+    await Promise.all([
+      db.ref('entities/providers').once('value'),
+      db.ref('entities/locations').once('value'),
+      db.ref('categories').once('value'),
+      db.ref('hotlines').once('value'),
+    ]);
 
   const allProviders = Object.values(
     (providersSnap.val() as Record<string, Provider> | null) ?? {}
@@ -63,7 +67,11 @@ async function load(): Promise<Snapshot> {
     ])
   );
 
-  return { providers, locations, categories, fetchedAt: Date.now() };
+  const hotlines: EmergencyContact[] = Object.values(
+    (hotlinesSnap.val() as Record<string, EmergencyContact> | null) ?? {}
+  );
+
+  return { providers, locations, categories, hotlines, fetchedAt: Date.now() };
 }
 
 export async function getSnapshot(): Promise<Snapshot> {
