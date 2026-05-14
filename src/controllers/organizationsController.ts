@@ -1,12 +1,19 @@
+import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
-import { getSnapshot } from '../utils/entityStore';
+import { getDb } from '../config/firebase';
+import { HttpError } from '../middleware/error';
+import { getSnapshot, invalidateSnapshot } from '../utils/entityStore';
 import type {
   Location,
+  MapListingDto,
   MapProviderDto,
+  MapRegionGroup,
   OrganizationDto,
   Provider,
   ProviderContact,
 } from '../models/Organization';
+
+const CONTACT_TYPES = new Set(['phone', 'whatsapp', 'email', 'call']);
 
 type Sort = 'az' | 'relevance';
 
@@ -366,8 +373,27 @@ export async function mapListOrganizations(
     locationFilter,
   });
 
-  const data = filtered.map(toMapDto);
+  const groups = new Map<string, MapRegionGroup>();
+  for (const dto of filtered) {
+    const region = dto.locations[0]?.trim() || 'Unknown';
+    const regionId = slugify(region) || 'unknown';
+    let group = groups.get(regionId);
+    if (!group) {
+      group = { region, region_id: regionId, count: 0, listings: [] };
+      groups.set(regionId, group);
+    }
+    const listing: MapListingDto = {
+      id: dto.id,
+      category: dto.sectors[0] ? slugify(dto.sectors[0]) : null,
+      title: dto.title,
+    };
+    group.listings.push(listing);
+    group.count += 1;
+  }
 
+  const data = [...groups.values()].sort((a, b) =>
+    a.region.localeCompare(b.region)
+  );
   res.json({ data, total: data.length });
 }
 
@@ -387,4 +413,78 @@ export async function getOrganization(
   }
 
   res.json({ data: dto });
+}
+
+function pickString(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+export async function createOrganization(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  const name = pickString(body.name);
+  const nameAr = pickString(body.name_ar);
+  const rawContact = pickString(body.contact_type)?.toLowerCase() ?? '';
+  const contactType = rawContact === 'call' ? 'phone' : rawContact;
+  const orgType = pickString(body.organization_type);
+
+  if (!name) throw new HttpError(400, 'name is required');
+  if (!nameAr) throw new HttpError(400, 'name_ar is required');
+  if (!CONTACT_TYPES.has(rawContact))
+    throw new HttpError(
+      400,
+      `contact_type must be one of: ${[...CONTACT_TYPES].join(', ')}`
+    );
+  if (!orgType) throw new HttpError(400, 'organization_type is required');
+
+  const phone = pickString(body.phone_number);
+  const whatsapp = pickString(body.whatsapp);
+  const email = pickString(body.email);
+  const district = pickString(body.district);
+
+  const contactValue =
+    contactType === 'phone'
+      ? phone
+      : contactType === 'whatsapp'
+        ? whatsapp
+        : email;
+  if (!contactValue)
+    throw new HttpError(
+      400,
+      `${rawContact === 'call' ? 'phone_number' : contactType} is required when contact_type is "${rawContact}"`
+    );
+
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  const primary_contact: ProviderContact = {
+    name: pickString(body.contact_name),
+    email,
+    phone: phone ?? (contactType === 'phone' ? contactValue : null),
+    whatsapp: whatsapp ?? (contactType === 'whatsapp' ? contactValue : null),
+  };
+
+  const record: Provider = {
+    provider_id: id,
+    provider_name: name,
+    provider_name_ar: nameAr,
+    slug: id,
+    primary_contact,
+    secondary_contact: null,
+    sectors: [orgType],
+    districts: district ? [district] : [],
+    services: [],
+    service_count: 0,
+    is_name_valid: true,
+    pinned: false,
+    verified: false,
+    updated_at: now,
+  };
+
+  await getDb().ref(`entities/providers/${id}`).set(record);
+  invalidateSnapshot();
+
+  res.status(201).json({ data: record });
 }

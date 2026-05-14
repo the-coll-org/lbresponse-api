@@ -82,6 +82,19 @@ export interface MapProviderDto {
   organization_type: string | null;
 }
 
+export interface MapListingDto {
+  id: string;
+  category: string | null;
+  title: string;
+}
+
+export interface MapRegionGroup {
+  region: string;
+  region_id: string;
+  count: number;
+  listings: MapListingDto[];
+}
+
 export interface FilterOption {
   id: string;
   label: string;
