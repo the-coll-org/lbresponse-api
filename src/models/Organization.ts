@@ -109,3 +109,17 @@ export interface FilterGroup {
   group_label_ar: string;
   options: FilterOption[];
 }
+
+export interface EmergencyContact {
+  id: string;
+  category: string;
+  city: string;
+  name_en: string;
+  name_ar: string | null;
+  hotline: string | null;
+  phone: string | null;
+  email: string | null;
+  source_url: string | null;
+  inserted_at: string;
+  updated_at: string | null;
+}
