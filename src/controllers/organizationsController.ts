@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getSnapshot } from '../utils/entityStore';
 import type {
   Location,
+  MapProviderDto,
   OrganizationDto,
   Provider,
   ProviderContact,
@@ -177,47 +178,10 @@ function expandToDtos(
   }));
 }
 
-function scoreMatch(dto: OrganizationDto, q: string): number {
-  const hay = [
-    dto.title,
-    dto.description,
-    dto.organization_type,
-    ...dto.locations,
-    ...dto.sectors,
-    ...dto.services.map((s) => s.name ?? ''),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  if (!hay.includes(q)) return 0;
-  let score = 0;
-  if (dto.title.toLowerCase().includes(q)) score += 3;
-  if (dto.description?.toLowerCase().includes(q)) score += 2;
-  if (dto.locations.some((l) => l.toLowerCase().includes(q))) score += 1;
-  if (dto.organization_type?.toLowerCase().includes(q)) score += 1;
-  return score || 1;
-}
-
-export async function listOrganizations(
-  req: Request,
-  res: Response
-): Promise<void> {
-  const { providers, locations } = await getSnapshot();
-
-  const q = str(req.query.search).trim().toLowerCase();
-  const types = toArray(req.query.organization_type).map((s) =>
-    s.toLowerCase()
-  );
-  const sectorFilter = toArray(req.query.sector).map(slugify);
-  const locationFilter = toArray(req.query.location).map(slugify);
-  const sort: Sort = req.query.sort === 'relevance' ? 'relevance' : 'az';
-  const page = clampInt(req.query.page, 1);
-  const pageSize = clampInt(req.query.page_size, 10, 1, 100);
-  const includes = new Set(
-    toArray(req.query.include).map((s) => s.toLowerCase())
-  );
-  const includeServices = includes.has('services');
-
+export function buildMergedDtos(
+  providers: Provider[],
+  locations: Map<string, Location>
+): OrganizationDto[] {
   const seen = new Map<string, { dto: OrganizationDto; isSplit: boolean }>();
   for (const p of providers) {
     for (const expanded of expandToDtos(p, locations)) {
@@ -243,10 +207,6 @@ export async function listOrganizations(
     }
   }
 
-  // Merge cards that share the same (title, contact). The contact key is
-  // the first phone if present, otherwise the email — so phone-only and
-  // email-only orgs both collapse when the contact actually matches.
-  // Cards without any contact stay separate.
   const contactMerged = new Map<string, OrganizationDto>();
   const ungrouped: OrganizationDto[] = [];
   for (const { dto } of seen.values()) {
@@ -271,25 +231,102 @@ export async function listOrganizations(
     for (const d of dto.locations) districts.add(d);
     contactMerged.set(key, { ...existing, locations: [...districts] });
   }
-  const mergedDtos = [...contactMerged.values(), ...ungrouped];
+  return [...contactMerged.values(), ...ungrouped];
+}
 
-  const scored: { dto: OrganizationDto; score: number }[] = [];
-  for (const dto of mergedDtos) {
+interface FilterParams {
+  types: string[];
+  sectorFilter: string[];
+  locationFilter: string[];
+}
+
+export function filterDtos(
+  dtos: OrganizationDto[],
+  params: FilterParams
+): OrganizationDto[] {
+  const { types, sectorFilter, locationFilter } = params;
+  return dtos.filter((dto) => {
     if (
       types.length &&
       !types.includes((dto.organization_type ?? '').toLowerCase())
     )
-      continue;
+      return false;
     if (
       sectorFilter.length &&
       !dto.sectors.some((s) => sectorFilter.includes(slugify(s)))
     )
-      continue;
+      return false;
     if (
       locationFilter.length &&
       !dto.locations.some((l) => locationFilter.includes(slugify(l)))
     )
-      continue;
+      return false;
+    return true;
+  });
+}
+
+function scoreMatch(dto: OrganizationDto, q: string): number {
+  const hay = [
+    dto.title,
+    dto.description,
+    dto.organization_type,
+    ...dto.locations,
+    ...dto.sectors,
+    ...dto.services.map((s) => s.name ?? ''),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (!hay.includes(q)) return 0;
+  let score = 0;
+  if (dto.title.toLowerCase().includes(q)) score += 3;
+  if (dto.description?.toLowerCase().includes(q)) score += 2;
+  if (dto.locations.some((l) => l.toLowerCase().includes(q))) score += 1;
+  if (dto.organization_type?.toLowerCase().includes(q)) score += 1;
+  return score || 1;
+}
+
+export function toMapDto(dto: OrganizationDto): MapProviderDto {
+  return {
+    id: dto.id,
+    title: dto.title,
+    title_ar: dto.title_ar,
+    locations: dto.locations,
+    sectors: dto.sectors,
+    service_count: dto.service_count,
+    organization_type: dto.organization_type,
+  };
+}
+
+export async function listOrganizations(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const { providers, locations } = await getSnapshot();
+
+  const q = str(req.query.search).trim().toLowerCase();
+  const types = toArray(req.query.organization_type).map((s) =>
+    s.toLowerCase()
+  );
+  const sectorFilter = toArray(req.query.sector).map(slugify);
+  const locationFilter = toArray(req.query.location).map(slugify);
+  const sort: Sort = req.query.sort === 'relevance' ? 'relevance' : 'az';
+  const page = clampInt(req.query.page, 1);
+  const pageSize = clampInt(req.query.page_size, 10, 1, 100);
+  const includes = new Set(
+    toArray(req.query.include).map((s) => s.toLowerCase())
+  );
+  const includeServices = includes.has('services');
+
+  const mergedDtos = buildMergedDtos(providers, locations);
+  const filtered = filterDtos(mergedDtos, {
+    types,
+    sectorFilter,
+    locationFilter,
+  });
+
+  const scored: { dto: OrganizationDto; score: number }[] = [];
+  for (const dto of filtered) {
     const score = q ? scoreMatch(dto, q) : 1;
     if (q && score === 0) continue;
     scored.push({ dto, score });
@@ -304,12 +341,50 @@ export async function listOrganizations(
   const start = (page - 1) * pageSize;
   const data = scored.slice(start, start + pageSize).map((s) => {
     if (includeServices) return s.dto;
-    // Strip services[] for the list response — the cards don't need it and it
-    // can be 60-80% of the payload. service_count is kept so the UI can still
-    // show how many services an org offers; full list available via
-    // ?include=services or a future detail endpoint.
     return { ...s.dto, services: [] };
   });
 
   res.json({ data, total, page, page_size: pageSize });
+}
+
+export async function mapListOrganizations(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const { providers, locations } = await getSnapshot();
+
+  const types = toArray(req.query.organization_type).map((s) =>
+    s.toLowerCase()
+  );
+  const sectorFilter = toArray(req.query.sector).map(slugify);
+  const locationFilter = toArray(req.query.location).map(slugify);
+
+  const mergedDtos = buildMergedDtos(providers, locations);
+  const filtered = filterDtos(mergedDtos, {
+    types,
+    sectorFilter,
+    locationFilter,
+  });
+
+  const data = filtered.map(toMapDto);
+
+  res.json({ data, total: data.length });
+}
+
+export async function getOrganization(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const { providers, locations } = await getSnapshot();
+  const id = req.params.id;
+
+  const mergedDtos = buildMergedDtos(providers, locations);
+  const dto = mergedDtos.find((d) => d.id === id);
+
+  if (!dto) {
+    res.status(404).json({ error: 'Organization not found' });
+    return;
+  }
+
+  res.json({ data: dto });
 }

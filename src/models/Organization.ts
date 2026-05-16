@@ -72,6 +72,16 @@ export interface OrganizationDto {
   updated_at: string | null;
 }
 
+export interface MapProviderDto {
+  id: string;
+  title: string;
+  title_ar: string | null;
+  locations: string[];
+  sectors: string[];
+  service_count: number;
+  organization_type: string | null;
+}
+
 export interface FilterOption {
   id: string;
   label: string;
