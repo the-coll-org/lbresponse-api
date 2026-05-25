@@ -293,9 +293,39 @@ describe('GET /my-endpoint', () => {
 The Dockerfile uses a **multi-stage build** for small, secure images:
 
 1. **Builder stage** — installs all dependencies and compiles TypeScript
-2. **Runner stage** — copies only the compiled JavaScript and production dependencies, runs as a non-root user
+2. **Runner stage** — copies only the compiled JavaScript and production dependencies, runs as a non-root user (`appuser`), and includes a `HEALTHCHECK` that hits `/health`
 
 Test files (`*.test.ts`, `*.spec.ts`) are excluded from the Docker image via `.dockerignore`.
+
+The compose file binds the container to `127.0.0.1` so a reverse proxy (Caddy) on the host can terminate TLS and forward to it without exposing port 3000 publicly.
+
+### Production deploy (VPS)
+
+The expected deploy topology is:
+
+```
+Internet ─► Caddy (host, TLS) ─► docker (127.0.0.1:3000) ─► node
+```
+
+On the server:
+
+```bash
+sudo mkdir -p /opt/lbresponse-api && cd /opt/lbresponse-api
+sudo git clone https://github.com/the-coll-org/lbresponse-api.git .
+sudo cp .env.example .env && sudo chmod 600 .env
+# edit .env: set FIREBASE_DB_URL, FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
+sudo docker compose up -d --build
+```
+
+To update:
+
+```bash
+cd /opt/lbresponse-api
+sudo git pull
+sudo docker compose up -d --build
+```
+
+GitHub Actions automates this on push to `main` — see `.github/workflows/deploy.yml`.
 
 ---
 
