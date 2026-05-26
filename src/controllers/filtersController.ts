@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { getSnapshot } from '../utils/entityStore';
 import type { FilterGroup } from '../models/Organization';
+import { CRN_CATEGORY_OPTIONS } from '../lib/serviceCategoryMap';
+import { buildMergedDtos } from './organizationsController';
 
 const GROUP_LABELS = new Map<string, { en: string; ar: string }>([
   ['sector', { en: 'Sector', ar: 'القطاع' }],
@@ -20,7 +22,7 @@ function tally(
 }
 
 export async function listFilters(_req: Request, res: Response): Promise<void> {
-  const { providers, categories } = await getSnapshot();
+  const { providers, locations, categories } = await getSnapshot();
 
   const sectorCounts = tally(providers.flatMap((p) => p.sectors ?? []));
   const districtCounts = tally(providers.flatMap((p) => p.districts ?? []));
@@ -51,6 +53,28 @@ export async function listFilters(_req: Request, res: Response): Promise<void> {
       };
     }
   );
+
+  // Normalized CRN service categories — counts come from the same merged DTOs
+  // that /organizations returns, so the numbers match exactly.
+  const dtos = buildMergedDtos(providers, locations);
+  const categoryCounts = new Map<string, number>();
+  for (const d of dtos) {
+    for (const c of d.categories) {
+      categoryCounts.set(c.id, (categoryCounts.get(c.id) ?? 0) + 1);
+    }
+  }
+  groups.push({
+    group_id: 'category',
+    group_label: 'Service Category',
+    group_label_ar: 'فئة الخدمة',
+    options: CRN_CATEGORY_OPTIONS.map((opt, i) => ({
+      id: opt.id,
+      label: opt.label,
+      label_ar: null,
+      result_count: categoryCounts.get(opt.id) ?? 0,
+      display_order: i,
+    })),
+  });
 
   res.json({ data: groups });
 }
