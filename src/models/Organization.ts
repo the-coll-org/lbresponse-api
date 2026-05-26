@@ -49,6 +49,12 @@ export interface CategoryRecord {
   sort_order?: number | null;
 }
 
+export interface NormalizedCategoryDto {
+  id: string;
+  label: string;
+  raw_name: string;
+}
+
 export interface OrganizationDto {
   id: string;
   title: string;
@@ -62,7 +68,9 @@ export interface OrganizationDto {
   social_media: string[];
   type: string | null;
   locations: string[];
+  governorate: string | null;
   sectors: string[];
+  categories: NormalizedCategoryDto[];
   services: ProviderService[];
   service_count: number;
   primary_contact_name: string | null;
@@ -77,7 +85,9 @@ export interface MapProviderDto {
   title: string;
   title_ar: string | null;
   locations: string[];
+  governorate: string | null;
   sectors: string[];
+  categories: NormalizedCategoryDto[];
   service_count: number;
   organization_type: string | null;
 }

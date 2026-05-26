@@ -12,6 +12,7 @@ import type {
   Provider,
   ProviderContact,
 } from '../models/Organization';
+import { normalizeCategories } from '../lib/serviceCategoryMap';
 
 const CONTACT_TYPES = new Set(['phone', 'whatsapp', 'email', 'call']);
 
@@ -118,10 +119,20 @@ function buildMapUrlFromDistricts(districts: string[]): string | null {
   return `https://www.google.com/maps?q=${encodeURIComponent(districts[0] + ', Lebanon')}`;
 }
 
-function toDto(
-  p: Provider,
-  _locations: Map<string, Location>
-): OrganizationDto {
+function lookupGovernorate(
+  districts: string[],
+  locations: Map<string, Location>
+): string | null {
+  if (!districts.length || locations.size === 0) return null;
+  const wanted = new Set(districts.map((d) => d.toLowerCase().trim()));
+  for (const loc of locations.values()) {
+    const d = (loc.district ?? '').toLowerCase().trim();
+    if (d && wanted.has(d) && loc.governorate) return loc.governorate;
+  }
+  return null;
+}
+
+function toDto(p: Provider, locations: Map<string, Location>): OrganizationDto {
   const primary = p.primary_contact ?? null;
   const secondary = p.secondary_contact ?? null;
   const sectors = Array.isArray(p.sectors) ? p.sectors.filter(Boolean) : [];
@@ -130,6 +141,11 @@ function toDto(
     : [];
   const services = Array.isArray(p.services) ? p.services : [];
   const phones = collectPhones(primary, secondary);
+  const categories = normalizeCategories([
+    ...sectors,
+    ...services.map((s) => s.sector ?? ''),
+  ]);
+  const governorate = lookupGovernorate(districts, locations);
 
   return {
     id: p.provider_id,
@@ -144,7 +160,9 @@ function toDto(
     social_media: [],
     type: null,
     locations: districts,
+    governorate,
     sectors,
+    categories,
     services,
     service_count:
       typeof p.service_count === 'number' ? p.service_count : services.length,
@@ -245,13 +263,14 @@ interface FilterParams {
   types: string[];
   sectorFilter: string[];
   locationFilter: string[];
+  categoryFilter?: string[];
 }
 
 export function filterDtos(
   dtos: OrganizationDto[],
   params: FilterParams
 ): OrganizationDto[] {
-  const { types, sectorFilter, locationFilter } = params;
+  const { types, sectorFilter, locationFilter, categoryFilter = [] } = params;
   return dtos.filter((dto) => {
     if (
       types.length &&
@@ -268,6 +287,11 @@ export function filterDtos(
       !dto.locations.some((l) => locationFilter.includes(slugify(l)))
     )
       return false;
+    if (
+      categoryFilter.length &&
+      !dto.categories.some((c) => categoryFilter.includes(c.id))
+    )
+      return false;
     return true;
   });
 }
@@ -279,6 +303,7 @@ function scoreMatch(dto: OrganizationDto, q: string): number {
     dto.organization_type,
     ...dto.locations,
     ...dto.sectors,
+    ...dto.categories.map((c) => c.label),
     ...dto.services.map((s) => s.name ?? ''),
   ]
     .filter(Boolean)
@@ -299,7 +324,9 @@ export function toMapDto(dto: OrganizationDto): MapProviderDto {
     title: dto.title,
     title_ar: dto.title_ar,
     locations: dto.locations,
+    governorate: dto.governorate,
     sectors: dto.sectors,
+    categories: dto.categories,
     service_count: dto.service_count,
     organization_type: dto.organization_type,
   };
@@ -317,6 +344,9 @@ export async function listOrganizations(
   );
   const sectorFilter = toArray(req.query.sector).map(slugify);
   const locationFilter = toArray(req.query.location).map(slugify);
+  const categoryFilter = toArray(req.query.category).map((s) =>
+    s.toLowerCase()
+  );
   const sort: Sort = req.query.sort === 'relevance' ? 'relevance' : 'az';
   const page = clampInt(req.query.page, 1);
   const pageSize = clampInt(req.query.page_size, 10, 1, 100);
@@ -330,6 +360,7 @@ export async function listOrganizations(
     types,
     sectorFilter,
     locationFilter,
+    categoryFilter,
   });
 
   const scored: { dto: OrganizationDto; score: number }[] = [];
@@ -365,12 +396,16 @@ export async function mapListOrganizations(
   );
   const sectorFilter = toArray(req.query.sector).map(slugify);
   const locationFilter = toArray(req.query.location).map(slugify);
+  const categoryFilter = toArray(req.query.category).map((s) =>
+    s.toLowerCase()
+  );
 
   const mergedDtos = buildMergedDtos(providers, locations);
   const filtered = filterDtos(mergedDtos, {
     types,
     sectorFilter,
     locationFilter,
+    categoryFilter,
   });
 
   const groups = new Map<string, MapRegionGroup>();
