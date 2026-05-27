@@ -9,14 +9,14 @@ describe('normalizeCategory', () => {
   it('maps CWG to cash_livelihood', () => {
     const got = normalizeCategory('CWG');
     expect(got.id).toBe('cash_livelihood');
-    expect(got.label).toBe('Cash & Livelihood');
+    expect(got.label).toBe('Cash and Livelihood');
     expect(got.raw_name).toBe('CWG');
   });
 
   it('is case- and whitespace-insensitive', () => {
     const got = normalizeCategory('  wash ');
-    expect(got.id).toBe('wash');
-    expect(got.label).toBe('Water, Sanitation & Hygiene');
+    expect(got.id).toBe('wash_hygiene');
+    expect(got.label).toBe('WASH and Hygiene');
   });
 
   it('falls back to unknown for unmapped names', () => {
