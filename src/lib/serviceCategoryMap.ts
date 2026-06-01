@@ -17,15 +17,15 @@ export interface NormalizedCategory {
 
 // PowerBI (UN) sector name → CRN user-facing category
 export const SERVICE_CATEGORY_MAP: Record<string, CrnCategory> = {
-  // Safety & Protection umbrella
+  // Safety & Protection
   'Child Protection': { id: 'safety_protection', label: 'Safety & Protection' },
   GBV: { id: 'safety_protection', label: 'Safety & Protection' },
   Protection: { id: 'safety_protection', label: 'Safety & Protection' },
   'Social Stability': { id: 'safety_protection', label: 'Safety & Protection' },
-  // Cash & Livelihood umbrella
+  // Cash & Livelihood
   CWG: { id: 'cash_livelihood', label: 'Cash and Livelihood' },
   Livelihoods: { id: 'cash_livelihood', label: 'Cash and Livelihood' },
-  // Food & Nutrition umbrella
+  // Food & Nutrition
   'Food Security & Agriculture': {
     id: 'food_nutrition',
     label: 'Food and Nutrition',
@@ -33,9 +33,20 @@ export const SERVICE_CATEGORY_MAP: Record<string, CrnCategory> = {
   Nutrition: { id: 'food_nutrition', label: 'Food and Nutrition' },
   // Shelter / NFI
   Shelter: { id: 'shelter_nfi', label: 'Shelter / NFI' },
-  // WASH
+  // WASH and Hygiene
   WaSH: { id: 'wash_hygiene', label: 'WASH and Hygiene' },
-  // Education (no CRN equivalent yet, kept for completeness)
+  // Health / Medical
+  Health: { id: 'health_medical', label: 'Health / Medical' },
+  // Transportation & Logistics
+  Transportation: {
+    id: 'transportation_logistics',
+    label: 'Transportation & Logistics',
+  },
+  Logistics: {
+    id: 'transportation_logistics',
+    label: 'Transportation & Logistics',
+  },
+  // Education
   Education: { id: 'education', label: 'Education' },
 };
 
