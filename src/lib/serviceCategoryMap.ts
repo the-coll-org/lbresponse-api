@@ -15,21 +15,28 @@ export interface NormalizedCategory {
   raw_name: string;
 }
 
+// PowerBI (UN) sector name → CRN user-facing category
 export const SERVICE_CATEGORY_MAP: Record<string, CrnCategory> = {
-  'Child Protection': { id: 'child_protection', label: 'Child Protection' },
-  CWG: { id: 'cash_livelihood', label: 'Cash & Livelihood' },
-  Livelihoods: { id: 'cash_livelihood', label: 'Cash & Livelihood' },
-  Education: { id: 'education', label: 'Education' },
+  // Safety & Protection umbrella
+  'Child Protection': { id: 'safety_protection', label: 'Safety & Protection' },
+  GBV: { id: 'safety_protection', label: 'Safety & Protection' },
+  Protection: { id: 'safety_protection', label: 'Safety & Protection' },
+  'Social Stability': { id: 'safety_protection', label: 'Safety & Protection' },
+  // Cash & Livelihood umbrella
+  CWG: { id: 'cash_livelihood', label: 'Cash and Livelihood' },
+  Livelihoods: { id: 'cash_livelihood', label: 'Cash and Livelihood' },
+  // Food & Nutrition umbrella
   'Food Security & Agriculture': {
     id: 'food_nutrition',
-    label: 'Food & Nutrition',
+    label: 'Food and Nutrition',
   },
-  Nutrition: { id: 'food_nutrition', label: 'Food & Nutrition' },
-  GBV: { id: 'gbv', label: 'GBV' },
-  Protection: { id: 'protection', label: 'Protection' },
-  Shelter: { id: 'shelter', label: 'Shelter' },
-  'Social Stability': { id: 'social_stability', label: 'Social Stability' },
-  WaSH: { id: 'wash', label: 'Water, Sanitation & Hygiene' },
+  Nutrition: { id: 'food_nutrition', label: 'Food and Nutrition' },
+  // Shelter / NFI
+  Shelter: { id: 'shelter_nfi', label: 'Shelter / NFI' },
+  // WASH
+  WaSH: { id: 'wash_hygiene', label: 'WASH and Hygiene' },
+  // Education (no CRN equivalent yet, kept for completeness)
+  Education: { id: 'education', label: 'Education' },
 };
 
 const LOOKUP = new Map<string, CrnCategory>(

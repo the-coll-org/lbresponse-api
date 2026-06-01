@@ -6,3 +6,4 @@ dist
 coverage
 .DS_Store
 service-account.json
+*db-firebase-adminsdk*.json
