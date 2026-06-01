@@ -105,7 +105,8 @@ function buildDescription(p: Provider): string | null {
   const names: string[] = [];
   const seen = new Set<string>();
   for (const s of services) {
-    const name = typeof s.name === 'string' ? s.name.trim() : '';
+    const raw = typeof s.name === 'string' ? s.name.trim() : '';
+    const name = raw.replace(/^[A-Z][A-Z0-9]*\d+:\s*/, '');
     if (!name || seen.has(name.toLowerCase())) continue;
     seen.add(name.toLowerCase());
     names.push(name);

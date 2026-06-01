@@ -16,14 +16,17 @@ function clampInt(v: unknown, fallback: number, min = 1, max = 1000): number {
 export async function listHotlines(req: Request, res: Response): Promise<void> {
   const { hotlines } = await getSnapshot();
 
-  const category = qs(req.query.category).trim().toLowerCase();
+  const categoryRaw = qs(req.query.category).trim().toLowerCase();
+  const categories = categoryRaw
+    ? new Set(categoryRaw.split(',').map((s) => s.trim()))
+    : null;
   const city = qs(req.query.city).trim().toLowerCase();
   const search = qs(req.query.search).trim().toLowerCase();
   const page = clampInt(req.query.page, 1);
   const pageSize = clampInt(req.query.page_size, 10, 1, 100);
 
   const filtered = hotlines.filter((h) => {
-    if (category && h.category.toLowerCase() !== category) return false;
+    if (categories && !categories.has(h.category.toLowerCase())) return false;
     if (city && h.city.toLowerCase() !== city) return false;
     if (search) {
       const haystack = [
