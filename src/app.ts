@@ -30,6 +30,11 @@ app.set('views', path.join(__dirname, 'admin/views'));
 // load the Firebase Web SDK and run Google sign-in; the JSON API is unaffected.
 app.use(
   helmet({
+    // The Google sign-in popup posts its result back to the opener window via
+    // postMessage; the default COOP "same-origin" severs that link and surfaces
+    // as auth/internal-error. "same-origin-allow-popups" keeps isolation while
+    // allowing the opener to communicate with popups it spawned.
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
