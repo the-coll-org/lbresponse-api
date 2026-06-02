@@ -1,14 +1,23 @@
 name: Deploy
 
+# Continuous deployment for both environments on the testing VPS:
+#   main    -> production  (/home/chris/lbresponse-api,        project lbresponse-api,     :3200, rn-api.thecoll.org)
+#   develop -> testing     (/home/chris/lbresponse-api-develop, project lbresponse-develop, :3100, testing-rn-api.thecoll.org)
+#
+# Each environment keeps its own untracked .env, service-account.json and
+# docker-compose.override.yml on the server (not in git); deploy only pulls code
+# and rebuilds the container, so those env-specific files are preserved.
+
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  # One deploy per branch at a time; don't cancel an in-flight deploy.
+  group: deploy-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -17,8 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+      github.event.workflow_run.conclusion == 'success'
     environment: factory-testing
     timeout-minutes: 10
     steps:
@@ -31,14 +39,50 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script_stop: true
+          # Pass the triggering branch through to the remote shell.
+          envs: DEPLOY_BRANCH
           script: |
             set -euo pipefail
-            cd /opt/lbresponse-api
-            git fetch origin main
-            # Refuse to deploy if the server checkout has diverged from origin/main —
-            # someone has been editing files on the server. Investigate, don't paper over.
-            git checkout main
-            git pull --ff-only origin main
-            docker compose up -d --build --remove-orphans
-            docker compose ps
+            BRANCH="${{ github.event.workflow_run.head_branch || github.ref_name }}"
+
+            # Map branch -> environment.
+            if [ "$BRANCH" = "main" ]; then
+              DIR=/home/chris/lbresponse-api
+              PROJECT=lbresponse-api
+            elif [ "$BRANCH" = "develop" ]; then
+              DIR=/home/chris/lbresponse-api-develop
+              PROJECT=lbresponse-develop
+            else
+              echo "Branch '$BRANCH' is not a deployable environment — skipping."
+              exit 0
+            fi
+
+            echo "Deploying branch '$BRANCH' -> $DIR (project $PROJECT)"
+            cd "$DIR"
+            git fetch origin "$BRANCH"
+            # Refuse to deploy if the server checkout diverged from origin —
+            # someone edited files on the server. Investigate, don't paper over.
+            git checkout "$BRANCH"
+            git pull --ff-only origin "$BRANCH"
+
+            docker compose -p "$PROJECT" up -d --build --remove-orphans
+            docker compose -p "$PROJECT" ps
+
+            # Post-deploy smoke test: poll the container's built-in health status
+            # (port-independent) and fail the deploy loudly if it never goes healthy.
+            echo "Waiting for the API to become healthy..."
+            cid="$(docker compose -p "$PROJECT" ps -q api)"
+            for i in $(seq 1 20); do
+              status="$(docker inspect --format '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
+              if [ "$status" = "healthy" ]; then
+                echo "Health check passed."
+                break
+              fi
+              if [ "$i" = "20" ]; then
+                echo "Health check FAILED after deploy (status=$status) — dumping logs:" >&2
+                docker compose -p "$PROJECT" logs --tail=50 api >&2 || true
+                exit 1
+              fi
+              sleep 3
+            done
             docker image prune -f
