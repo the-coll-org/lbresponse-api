@@ -1,0 +1,26 @@
+# Validation stack for the chore/production-readiness branch.
+#
+# Runs ALONGSIDE the production `main` container (different container name, host
+# port, image tag, Firebase instance and service-account) so the data migration
+# and the new admin dashboard can be validated end-to-end before promoting.
+#
+# Launch with an explicit project name (so it does not collide with the default
+# stack) and pass both compose files explicitly. Passing -f explicitly disables
+# auto-loading of docker-compose.override.yml, so this file owns the SA mount.
+# HOST_PORT MUST be passed as a shell variable (compose interpolates ${HOST_PORT}
+# from the shell / main .env, NOT from env_file) so the base mapping binds 3200:
+#
+#   HOST_PORT=3200 docker compose -p lbresponse-branch \
+#     -f docker-compose.yml -f docker-compose.branch.yml up -d --build
+#
+# Requires:
+#   - .env.branch                (new FIREBASE_DB_URL, ADMIN_EMAILS, FIREBASE_WEB_*)
+#   - service-account.new.json   (service-account key for the NEW project)
+services:
+  api:
+    image: lbresponse-api:branch
+    container_name: lbresponse-api-branch
+    env_file:
+      - .env.branch
+    volumes:
+      - ./service-account.new.json:/app/service-account.json:ro

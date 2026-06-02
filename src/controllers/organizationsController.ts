@@ -455,12 +455,12 @@ function pickString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-export async function createOrganization(
-  req: Request,
-  res: Response
-): Promise<void> {
-  const body = (req.body ?? {}) as Record<string, unknown>;
-
+// Validates input, writes a new provider record, and invalidates the cache.
+// Throws HttpError on validation failure. Shared by the admin dashboard; there
+// is intentionally no unauthenticated HTTP route to this.
+export async function createOrganizationRecord(
+  body: Record<string, unknown>
+): Promise<Provider> {
   const name = pickString(body.name);
   const nameAr = pickString(body.name_ar);
   const rawContact = pickString(body.contact_type)?.toLowerCase() ?? '';
@@ -522,5 +522,5 @@ export async function createOrganization(
   await getDb().ref(`entities/providers/${id}`).set(record);
   invalidateSnapshot();
 
-  res.status(201).json({ data: record });
+  return record;
 }

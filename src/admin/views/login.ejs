@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Login · lbresponse</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; display: grid; place-items: center; min-height: 100vh; margin: 0; }
+      .card { background: #1e293b; padding: 2.5rem; border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+      h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
+      p { color: #94a3b8; font-size: .9rem; margin: 0 0 1.5rem; }
+      button { background: #fff; color: #1f2937; border: 0; border-radius: 8px; padding: .7rem 1rem; font-size: .95rem; font-weight: 600; cursor: pointer; width: 100%; }
+      button:disabled { opacity: .6; cursor: default; }
+      .err { color: #fca5a5; font-size: .85rem; margin-top: 1rem; min-height: 1.2em; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>lbresponse admin</h1>
+      <p>Sign in with an authorized Google account.</p>
+      <button id="signin">Sign in with Google</button>
+      <div class="err" id="err"></div>
+    </div>
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+      import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+      const app = initializeApp(<%- JSON.stringify(firebaseConfig) %>);
+      const auth = getAuth(app);
+      const btn = document.getElementById('signin');
+      const err = document.getElementById('err');
+
+      btn.addEventListener('click', async () => {
+        err.textContent = '';
+        btn.disabled = true;
+        try {
+          const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+          const idToken = await cred.user.getIdToken();
+          const res = await fetch('/admin/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+          if (res.ok) {
+            window.location.href = '/admin';
+          } else {
+            const data = await res.json().catch(() => ({}));
+            err.textContent = data.error || 'Sign-in failed.';
+            await auth.signOut();
+          }
+        } catch (e) {
+          err.textContent = (e && e.message) || 'Sign-in failed.';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

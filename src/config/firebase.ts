@@ -26,24 +26,20 @@ function getCredential(): admin.credential.Credential {
   );
 }
 
-function initFirebase(): admin.database.Database {
-  if (admin.apps.length) {
-    return admin.database();
-  }
-
+function ensureApp(): void {
+  if (admin.apps.length) return;
   admin.initializeApp({
     credential: getCredential(),
     databaseURL: process.env.FIREBASE_DB_URL,
   });
+}
 
+export function getDb(): admin.database.Database {
+  ensureApp();
   return admin.database();
 }
 
-let _db: admin.database.Database | null = null;
-
-export function getDb(): admin.database.Database {
-  if (!_db) {
-    _db = initFirebase();
-  }
-  return _db;
+export function getAuth(): admin.auth.Auth {
+  ensureApp();
+  return admin.auth();
 }

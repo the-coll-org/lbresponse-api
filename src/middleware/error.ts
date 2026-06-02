@@ -33,5 +33,7 @@ export function errorHandler(
       'Unhandled error'
     );
   }
-  res.status(status).json({ error: message });
+  // Never leak internal error details to clients on 5xx — log them above instead.
+  const clientMessage = status >= 500 ? 'Internal server error' : message;
+  res.status(status).json({ error: clientMessage });
 }
