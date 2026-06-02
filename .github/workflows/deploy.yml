@@ -58,6 +58,12 @@ jobs:
             fi
 
             echo "Deploying branch '$BRANCH' -> $DIR (project $PROJECT)"
+            echo "=== DEPLOY DEBUG ==="
+            echo "whoami: $(whoami)"; echo "hostname: $(hostname)"; echo "HOME: $HOME"
+            echo "--- ls /home ---"; ls -la /home 2>&1 || true
+            echo "--- ls \$HOME ---"; ls -la "$HOME" 2>&1 || true
+            echo "--- docker reachable? ---"; docker ps --format '{{.Names}}' 2>&1 | head || true
+            echo "=== END DEBUG ==="
             cd "$DIR"
             git fetch origin "$BRANCH"
             # Refuse to deploy if the server checkout diverged from origin —
