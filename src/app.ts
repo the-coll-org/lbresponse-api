@@ -38,7 +38,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.gstatic.com'],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          'https://www.gstatic.com',
+          'https://apis.google.com',
+        ],
         connectSrc: [
           "'self'",
           'https://*.googleapis.com',
