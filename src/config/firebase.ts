@@ -17,6 +17,7 @@ function getCredential(): admin.credential.Credential {
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     path.resolve(process.cwd(), 'service-account.json');
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- credPath is trusted server config (env var or fixed default), never user input
   if (fs.existsSync(credPath)) {
     return admin.credential.cert(credPath);
   }
