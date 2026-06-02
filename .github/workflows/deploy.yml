@@ -22,12 +22,12 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to factory-testing-vps
+    name: Deploy to ceek-main-server
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
-    environment: factory-testing
+    environment: ceek-main-server
     timeout-minutes: 10
     steps:
       - name: Deploy via SSH
