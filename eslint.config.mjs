@@ -24,6 +24,8 @@ export default [
       globals: {
         console: 'readonly',
         process: 'readonly',
+        __dirname: 'readonly',
+        setTimeout: 'readonly',
       },
     },
     plugins: {

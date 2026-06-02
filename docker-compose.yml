@@ -16,7 +16,20 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+    # Resource caps
     mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
+    # Hardening: no privilege escalation, drop all Linux capabilities, and run
+    # with a read-only root filesystem (the app is stateless and logs to stdout;
+    # only /tmp needs to be writable).
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     healthcheck:
       test:
         [

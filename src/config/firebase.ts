@@ -17,6 +17,7 @@ function getCredential(): admin.credential.Credential {
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     path.resolve(process.cwd(), 'service-account.json');
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- credPath is trusted server config (env var or fixed default), never user input
   if (fs.existsSync(credPath)) {
     return admin.credential.cert(credPath);
   }
@@ -26,24 +27,20 @@ function getCredential(): admin.credential.Credential {
   );
 }
 
-function initFirebase(): admin.database.Database {
-  if (admin.apps.length) {
-    return admin.database();
-  }
-
+function ensureApp(): void {
+  if (admin.apps.length) return;
   admin.initializeApp({
     credential: getCredential(),
     databaseURL: process.env.FIREBASE_DB_URL,
   });
+}
 
+export function getDb(): admin.database.Database {
+  ensureApp();
   return admin.database();
 }
 
-let _db: admin.database.Database | null = null;
-
-export function getDb(): admin.database.Database {
-  if (!_db) {
-    _db = initFirebase();
-  }
-  return _db;
+export function getAuth(): admin.auth.Auth {
+  ensureApp();
+  return admin.auth();
 }

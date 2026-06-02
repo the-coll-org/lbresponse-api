@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Organizations · lbresponse admin</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; }
+      header { background: #1e293b; color: #e2e8f0; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+      header .who { font-size: .85rem; color: #94a3b8; }
+      header form { display: inline; }
+      .btn { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: .55rem .9rem; font-size: .9rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+      .btn.ghost { background: transparent; color: #cbd5e1; border: 1px solid #475569; }
+      main { padding: 1.5rem; max-width: 1100px; margin: 0 auto; }
+      .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+      h1 { font-size: 1.3rem; margin: 0; }
+      .count { color: #64748b; font-size: .9rem; }
+      .flash { background: #dcfce7; color: #166534; padding: .6rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+      table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+      th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid #f1f5f9; font-size: .9rem; }
+      th { background: #f1f5f9; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #475569; }
+      .pill { font-size: .72rem; padding: .15rem .5rem; border-radius: 999px; background: #e2e8f0; color: #475569; }
+      .pill.ok { background: #dcfce7; color: #166534; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>lbresponse admin</strong>
+      <span>
+        <span class="who"><%= email %></span>
+        <form method="post" action="/admin/logout" id="logoutForm">
+          <button type="submit" class="btn ghost">Sign out</button>
+        </form>
+      </span>
+    </header>
+    <main>
+      <% if (created) { %>
+        <div class="flash">Organization created successfully.</div>
+      <% } %>
+      <div class="bar">
+        <div>
+          <h1>Organizations</h1>
+          <span class="count"><%= organizations.length %> total</span>
+        </div>
+        <a class="btn" href="/admin/orgs/new">+ New organization</a>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Arabic name</th><th>Sectors</th><th>Districts</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% organizations.forEach(function (o) { %>
+            <tr>
+              <td><%= o.name %></td>
+              <td><%= o.nameAr %></td>
+              <td><%= o.sectors %></td>
+              <td><%= o.districts %></td>
+              <td>
+                <% if (o.verified) { %><span class="pill ok">verified</span><% } else { %><span class="pill">unverified</span><% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </main>
+    <script>
+      // Logout is a POST; submit via JS so the button works without inline handlers.
+      document.getElementById('logoutForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        await fetch('/admin/logout', { method: 'POST' });
+        window.location.href = '/admin/login';
+      });
+    </script>
+  </body>
+</html>

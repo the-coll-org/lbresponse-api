@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New organization · lbresponse admin</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; }
+      header { background: #1e293b; color: #e2e8f0; padding: 1rem 1.5rem; }
+      main { padding: 1.5rem; max-width: 640px; margin: 0 auto; }
+      h1 { font-size: 1.3rem; }
+      form { background: #fff; padding: 1.5rem; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+      label { display: block; font-size: .85rem; font-weight: 600; margin: 1rem 0 .3rem; }
+      .req { color: #dc2626; }
+      input, select { width: 100%; padding: .6rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: .95rem; box-sizing: border-box; }
+      .row { display: flex; gap: 1rem; }
+      .row > div { flex: 1; }
+      .actions { margin-top: 1.5rem; display: flex; gap: .75rem; }
+      .btn { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: .6rem 1.1rem; font-size: .9rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+      .btn.ghost { background: #f1f5f9; color: #334155; }
+      .err { background: #fee2e2; color: #991b1b; padding: .7rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+      .hint { color: #64748b; font-size: .78rem; font-weight: 400; }
+    </style>
+  </head>
+  <body>
+    <header><strong>lbresponse admin</strong> · New organization</header>
+    <main>
+      <h1>New organization</h1>
+      <% if (error) { %><div class="err"><%= error %></div><% } %>
+      <form method="post" action="/admin/orgs">
+        <label>Name <span class="req">*</span></label>
+        <input name="name" value="<%= values.name || '' %>" required />
+
+        <label>Arabic name <span class="req">*</span></label>
+        <input name="name_ar" value="<%= values.name_ar || '' %>" required />
+
+        <label>Organization type <span class="req">*</span></label>
+        <input name="organization_type" value="<%= values.organization_type || '' %>" required />
+
+        <label>Contact type <span class="req">*</span></label>
+        <select name="contact_type" required>
+          <% ['phone','whatsapp','email','call'].forEach(function (t) { %>
+            <option value="<%= t %>" <%= values.contact_type === t ? 'selected' : '' %>><%= t %></option>
+          <% }); %>
+        </select>
+
+        <div class="row">
+          <div>
+            <label>Phone number</label>
+            <input name="phone_number" value="<%= values.phone_number || '' %>" />
+          </div>
+          <div>
+            <label>WhatsApp</label>
+            <input name="whatsapp" value="<%= values.whatsapp || '' %>" />
+          </div>
+        </div>
+
+        <label>Email</label>
+        <input name="email" value="<%= values.email || '' %>" />
+        <span class="hint">Provide the field matching the contact type above.</span>
+
+        <div class="row">
+          <div>
+            <label>Contact name</label>
+            <input name="contact_name" value="<%= values.contact_name || '' %>" />
+          </div>
+          <div>
+            <label>District</label>
+            <input name="district" value="<%= values.district || '' %>" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn">Create</button>
+          <a href="/admin" class="btn ghost">Cancel</a>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>

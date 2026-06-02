@@ -1,9 +1,12 @@
 node_modules
 dist
 .env
+.env.branch
 *.js.map
 # Test
 coverage
 .DS_Store
 service-account.json
 *db-firebase-adminsdk*.json
+backup*.json
+service-account.new.json

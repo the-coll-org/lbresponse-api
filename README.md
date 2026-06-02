@@ -222,6 +222,51 @@ lbresponse-api/
 | GET    | `/health/firebase` | Checks Firebase connection and lists collections |
 | GET    | `/api/status`      | Returns API name, version, uptime, environment   |
 
+The public `/api/*` data endpoints are **read-only**. Organization records are
+created through the authenticated admin dashboard (below), not an open endpoint.
+
+---
+
+## Admin dashboard (`/admin`)
+
+A server-rendered dashboard for managing organization data, protected by Google
+sign-in. Access is restricted to an allowlist of Google accounts.
+
+**Setup:**
+
+1. In the Firebase console, enable **Authentication → Google** and add the
+   dashboard's domain under **Authorized domains**.
+2. Set the admin env vars (see `.env.example`):
+   - `ADMIN_EMAILS` — comma-separated allowlist of admin Google accounts.
+   - `FIREBASE_WEB_API_KEY`, `FIREBASE_WEB_AUTH_DOMAIN`, `FIREBASE_WEB_PROJECT_ID`,
+     `FIREBASE_WEB_APP_ID` — the public Web SDK config (Project settings → Your apps).
+
+**How it works:** the browser signs in with Google (Firebase Web SDK), the API
+verifies the ID token, checks the email allowlist, and issues an httpOnly
+session cookie (`admin.auth().createSessionCookie`). All `/admin` pages and the
+create action require a valid admin session.
+
+> Served over HTTPS in production (session cookies are `Secure`). For plain-HTTP
+> local validation set `COOKIE_SECURE=false`.
+
+---
+
+## Production hardening
+
+This service is built to run behind the platform Caddy reverse proxy (TLS
+termination), bound to `127.0.0.1`. Built-in protections:
+
+- **helmet** security headers + Content-Security-Policy.
+- **Rate limiting** — general, plus stricter limits on `/api/client-errors` and
+  admin login (tunable via `*_RATE_LIMIT_MAX` env vars).
+- **Graceful shutdown** on SIGTERM/SIGINT so redeploys don't drop requests.
+- Generic 5xx responses (internal error details are logged, never returned).
+- Container hardening in `docker-compose.yml`: non-root user, read-only root
+  filesystem, dropped capabilities, `no-new-privileges`, CPU/memory/pids caps.
+
+To migrate the Firebase database between projects, see
+[`docs/firebase-migration.md`](docs/firebase-migration.md).
+
 ---
 
 ## Firebase
